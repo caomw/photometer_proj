@@ -1,0 +1,242 @@
+function [ status, error, varargout ] = il1700( varargin )
+% IL7000
+%
+%   Reads data from and controls Industrial Light 1700 photometer.
+%
+%   Note: Photometer must be in "printer" mode (DCE config)
+%
+%   Syntax [ status, error , [value] ] = il1700( command, ... )
+%
+%       status      : If 0, then port open
+%       error       : string with error message
+%       value       : optional output when command = 'readline'
+%
+%       Commands:
+%
+%           il1700('open' [,port_num] )
+%               Opens connection to IL1700.
+%
+%               port_num is optional parameter indicating port number.
+%
+%
+%           il1700('close')
+%               Closes connection to IL1700.
+%
+%           il1700('readl')
+%               Read one line from IL1700.
+%
+%-------
+%
+%   Dependencies:
+%
+%       Macintosh:
+%           Calls SerialComm.m, included in Psychophysics Toolbox.  In most cases,
+%           a USB/Serial hardware converter and the appropriate drive will be
+%           required.  The Keyspan Serial Port (www.keyspan.com) works.
+%
+%       PC/Win
+%           Calls the Matlab built-in serial.m routine.
+%           Requires serial struct of format:
+%           s = serial('COM1', 'BaudRate', 1200, 'Parity', 8, 'StopBit',
+%           'n');
+
+
+%--------------------------------------------------------------------------
+%   History
+%
+%   070609  Rick Gilmore (rogilmore@psu.edu) wrote.
+%   081223  Rick Gilmore made minor modifications.  Still need to add
+%           PC/Win functionality.
+
+
+persistent IL1700_PORT_NUM;
+persistent IL1700_STATUS;
+persistent IL1700_PC_SERIAL_STRUCT;
+
+%----   Defaults for constants
+TIMEOUT_SECS    = 1;
+BAUD_RATE       = 1200;
+PARITY          = 'none';
+DATA_BITS       = 8;
+STOP_BITS       = 1;
+DEFAULT_CONFIG = [ num2str( BAUD_RATE ) ',' PARITY(1) ',' ....
+    num2str( DATA_BITS ) ',' num2str( STOP_BITS ) ];
+DEFAULT_CONFIG  = '1200,n,8,1'; % for IL1700
+                              
+PORT_NUMBER     = 1;
+TIME_BW_OPEN    = .5;
+serialData      = [];
+
+comp = lower( computer() );
+comp = comp(1:3);
+
+%----   PC serial command requires specialized structure
+if ~strcmp( comp, 'mac' )
+    DEFAULT_PC_CONFIG_STRUCT = serial('COM1', 'BaudRate', BAUD_RATE, 'Parity', PARITY(1), 'StopBits', STOP_BITS,...
+                                  'Data_Bits', DATA_BITS );
+end
+
+%----   Switch based on number input args
+if nargin < 1
+    if isempty( IL1700_STATUS )
+        status = -1;
+        varargout{1} = [];
+    else
+        status = IL1700_STATUS;
+    end
+else
+    switch lower( varargin{1} ) % command
+        case 'open'
+
+            %----   Argument checking
+            if nargin < 2 || isempty( port_num )
+                port_num = PORT_NUMBER;
+                port_name = 'COM1';
+            else
+                port_num = varargin{2};
+                port_name = ['COM' port_num ];
+            end
+            IL1700_PORT_NUM = port_num;
+
+            %----   Check status of IL1700
+            if isempty( IL1700_STATUS )
+                IL1700_STATUS = 0;
+            end
+
+            %----   Open port unless already opened
+            if IL1700_STATUS
+                status = 1; % port already opened
+            else
+                %----   Try to open, close port
+                try
+                    if strcmp(comp, 'mac')
+                        SerialComm('open', port_num, DEFAULT_CONFIG );
+                    else % assume PC
+                        IL1700_PC_SERIAL_STRUCT = serial( port_name );
+                        fopen(IL1700_PC_SERIAL_STRUCT);
+
+                        %---- Check to see if opened successfully
+                        serial_status = get( IL1700_PC_SERIAL_STRUCT, 'status');
+                        if strcmp( serial_status, 'open' );
+                            set( IL1700_PC_SERIAL_STRUCT, 'baudrate', BAUD_RATE, 'DataBits', DATA_BITS, 'StopBits', STOP_BITS, 'Parity', PARITY );
+                        else
+                            status = 2;
+                            IL1700_STATUS = 0;
+                            return;
+                        end % if strcmp
+                    end
+                    WaitSecs( TIME_BW_OPEN );
+                    status = 0;  % Port opened successfully
+                    IL1700_STATUS = 1;
+                catch
+                    status = 2; % Error in opening port
+                end
+            end
+            varargout{1} = serialData;
+
+        case 'close'
+            %----   Argument checking
+            if nargin < 2 || isempty( port_num )
+                port_num = PORT_NUMBER;
+                port_name = 'COM1';
+            else
+                port_num = varargin{2};
+                port_name = ['COM' port_num ];
+            end
+            IL1700_PORT_NUM = port_num;
+
+            %----   Try to close
+            if ~IL1700_STATUS
+                status = 4; % Port not open
+            else                
+                if strcmp(comp, 'mac')
+                    SerialComm('close', IL1700_PORT_NUM );
+                else
+                    fclose(IL1700_PC_SERIAL_STRUCT);
+                end
+                status = 0; % Command completed successfully
+                IL1700_STATUS = 0;                
+            end
+            varargout{1} = serialData;
+
+        case {'readline', 'readl', 'read'}
+            %----   Try to read line
+            if isempty( IL1700_PORT_NUM )
+                status = 3; % Port not specified
+            elseif ~IL1700_STATUS
+                status = 4; % Port not open
+            else
+
+                %----   Read line from serial port
+                if strcmp( comp, 'mac' )
+                    serialData = SerialComm('readl', IL1700_PORT_NUM );
+                    disp(sprintf('[%s]: Read line from device.', mfilename ));
+                else
+                    serialData = fscanf(IL1700_PC_SERIAL_STRUCT);
+                end
+
+                %----   If no data yet, loop until data read or time out
+                start_secs = GetSecs;
+                while isempty( serialData )
+                    if ( start_secs + TIMEOUT_SECS ) < GetSecs
+                        fprintf('Timed out\n');
+                        status = 5;
+                        varargout{1} = [];
+                        break;
+                    else
+                        if strcmp( comp, 'mac' )
+                            serialData = serialComm('readl', IL1700_PORT_NUM );
+                        else
+                            serialData = fscanf( IL1700_PC_SERIAL_STRUCT );
+                        end
+                    end
+                end
+
+                %----   If serialData read, then convert to double
+                if ~isempty( serialData )
+                    varargout{1} = str2double( serialData );
+                    status = 0; % Line read
+                else
+                    status = 6; % Line not read successfully
+                end
+            end % if elseif
+            varargout{1} = serialData;
+        otherwise
+            status = 7; % Bad command
+            varargout{1} = serialData;
+
+    end % switch
+end % if nargin
+
+%----   Assign outputs
+error = il1700_err( status );
+
+return
+%--------------------------------------------------------------------------
+
+
+%--------------------------------------------------------------------------
+function errstr = il1700_err(status)
+
+switch status
+    case -1
+        errstr='IL1700 has not been initialized';
+    case 0
+        errstr='No error';
+    case 1
+        errstr='Already connected to IL1700';
+    case 2
+        errstr='Problem opening port';
+    case 3
+        errstr='Port to close not specified';
+    case 4
+        errstr='Attempt to close port that is not currently open';
+    case 5
+        errstr='No data available to read within read time';
+    case 6
+        errstr='Data line not read';
+    case 7
+        errstr='Bad command for IL1700';
+    otherwise
+        errstr='IL1700 unknown error';
+end

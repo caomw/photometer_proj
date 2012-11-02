@@ -1,0 +1,53 @@
+function [ grayScCalib ] = calibrateMonitor( bitRes )
+%
+%
+
+%----   History
+%   081223 rog wrote.
+
+
+DEFAULT_BIT_RES = 8;
+GENERATE_PATCHES = 1;
+
+%----   If no bit resolution specified, use default
+if nargin < 1
+    bitRes = DEFAULT_BIT_RES;
+    disp(sprintf('[%s]: Bit resolution not specified. Defaulting to 8.', mfilename ) );
+end
+
+%----   Generate patches AND record data or just record data?
+if GENERATE_PATCHES
+    %   Generate & record
+    try
+        %   Open screen
+        for p = 1:256/bitRes;
+            % show patch
+            % wait for keypress
+            % if keypress = space (acce
+            % record data
+            grayScCalib(p,1) = % index value
+            grayScCalib(p,2) = % photometer value
+        end
+    catch
+
+    end
+else
+    %   Record only
+end
+
+return
+%--------------------------------------------------------------------------
+
+
+
+%--------------------------------------------------------------------------
+function showInstructions
+
+sprintf('Connect photometer to this computer.\n');
+
+return
+%--------------------------------------------------------------------------
+
+
+%--------------------------------------------------------------------------
+function patch = generatePatch( gsIndex, patchRect, scrNum )

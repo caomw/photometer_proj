@@ -1,0 +1,3 @@
+function i = mon_gamma( params, gun_values )
+
+i = params(1)*ones( size( gun_values ) ).*gun_values.^( params(2) ) + params(3)*ones( length( gun_values ) );

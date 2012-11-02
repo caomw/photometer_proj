@@ -1,0 +1,48 @@
+% test script for interface with photometer
+
+%----   Open connection to photometer
+% default_config = '1200,n,8,1';
+% portNumber     = 1;
+% secs_bw_reads  = 0.5;
+% read_secs      = 2;
+% serialData     = 0;
+% serialValue    = 0;
+% time_out_secs  = 2;
+% 
+% SerialComm('open', portNumber, default_config);
+% 
+% %----   Collect data
+% % start_read = GetSecs();
+% WaitSecs( secs_bw_reads );
+% serialData = SerialComm('readl', portNumber);
+% 
+% start_secs = GetSecs;
+% while isempty( serialData )
+%     if ( start_secs + time_out_secs ) < GetSecs
+%         fprint('Timed out\n');
+%         break;
+%     else
+%         serialData = serialComm('readl', portNumber );
+%     end
+% end
+% 
+% if ~isempty( serialData )
+%     serialValue = str2double( serialData );
+% end
+% 
+% disp( serialValue );
+% 
+% %----   Close port
+% SerialComm('close', portNumber);
+
+
+% for i = 1:15
+%     [ data, read ] = read_value_from_il1700();
+%     if read
+%         disp( data )
+%         val(i,1) = data;
+%     end
+% end
+% 
+% disp( val );
+% 
